@@ -8,6 +8,20 @@
 using std::string;
 using std::ostream;
 
+/**
+ * the pool manage memory with a doubly linked list with a head node,ervery node in pool will point to a range of memory
+ * .The pool will refresh node ervery time while free any memory.The algorithm which I use the most simple one is
+ * which will traversal the list and find the first node which will sastify the request.
+ * And the structure of pool is as below:
+ *             |------||------------  --------------------------
+ *             ↓      ↑↓           ↑  ↓                        ↑
+ * 			head-->node1--------->node2-->.................-->plast
+ *          		|              |                           |
+ *          		↓              ↓                           ↓
+ * 			-----------------------------------------------------------------------------------------
+ * palloc-->|	    |//////|	   |//////////////|      |/////|   									|
+ * 			-----------------------------------------------------------------------------------------
+ */
 namespace MemoryPoolSpace
 {
 	typedef unsigned char BaseType;
@@ -31,7 +45,7 @@ namespace MemoryPoolSpace
 		bool is_begin;              //if the node is the begin of the list
 		
 		BaseType *data;             //point to the memory
-		void *p_user;               //the owner of memory node
+		void **p_user;               //the owner of memory node
 	}MemoryNode;
 	
 	class MemoryPool
@@ -46,14 +60,17 @@ namespace MemoryPoolSpace
 		MemoryPool &operator=(MemoryPool &pool);
 	
 	public:
-		void *allocate(void **ptr, const size_t &size);      //allocate memory
-		void free(void *p, const size_t &size);             //free memory
-		void free_all();                                    //free all memory
+		void *allocate(void **ptr, const size_t &size);     //allocate memory
+		int free(void *p, const size_t &size);             //free memory
+		int free_all();                                    //free all memory
 		
-		ostream& display_memory_status(ostream &os);                       //display the status of memory
-		void get_error_info();                              //get the erro information
+		ostream& display_memory_status(ostream &os);        //display the status of memory
+		string get_error_info();                              //get the erro information
+		std::ostream& log(std::ostream &os,const string &msg);
+
+		void debug_log(std::ostream &os,const string &msg);
 	private:
-		void alloc_pool_memory();
+		int alloc_pool_memory();
 		void calc_node_number();                            //calcuate how many node is needed
 		void calc_memory_size();                            //calcuate how many memory should allocate actully
 		void calc_need_num(const size_t &size);
@@ -62,8 +79,9 @@ namespace MemoryPoolSpace
 		void update_link_node(MemoryNode *last);
 		MemoryNode* find_memory_node(size_t size);
 		MemoryNode* search_alloc_node(void *p);
-		void free_all_memory();
+		int free_all_memory();
 		void free_all_node();
+		void safe_delete(void *p);
 	private:
 		MemoryNode *phead;                                  //head of list
 		MemoryNode *pcur;                                   //current node

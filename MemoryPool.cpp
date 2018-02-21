@@ -1,10 +1,18 @@
 #include "MemoryPool.h"
 #include <cmath>
 #include <iostream>
+#include <iomanip>
 
+#define DEBUG
 
 namespace MemoryPoolSpace
 {
+	/**
+	 * constructor
+	 * @param pool_size	size of pool
+	 * @param node_size node size
+	 * @return
+	 */
 	MemoryPool::MemoryPool(const size_t &pool_size, const size_t &node_size)
 	{
 		//initialize all parameter
@@ -29,25 +37,45 @@ namespace MemoryPoolSpace
 		
 		this->is_first = true;
 		
-		this->alloc_pool_memory();
+		int ret = this->alloc_pool_memory();
+		if(ret == -1)
+		{
+			this->log(std::cout,this->error_msg);
+		}
+
+		this->debug_log(std::cout,"constructor initalized!");
 	}
 	
+	/**
+	 * destructor
+	 * free all memroy
+	 */
 	MemoryPool::~MemoryPool()
 	{
 		this->free_all();
+		this->debug_log(std::cout,"destructor end!");
 	}
 	
+	/**
+	 * calcuate how many node you need
+	 */
 	void MemoryPool::calc_node_number()
 	{
 		float value = this->pool_size / this->node_size;
 		this->no = ceil(value);
 	}
 	
+	/**
+	 * rejust the memory size according to node number
+	 */
 	void MemoryPool::calc_memory_size()
 	{
 		this->pool_size = (size_t)this->no * this->node_size;
 	}
 	
+	/**
+	 * rejust memory while last function realloc memory
+	 */
 	void MemoryPool::reset_memory()
 	{
 		MemoryNode *ptmp = this->phead->right;
@@ -56,11 +84,17 @@ namespace MemoryPoolSpace
 			ptmp->data = &this->palloc[i * this->node_size];
 			if(nullptr != ptmp->p_user)
 			{
-				ptmp->p_user = ptmp->data;
+				*ptmp->p_user = ptmp->data;
 			}
 		}
+		
+		this->debug_log(std::cout,"reset memory end!");
 	}
 	
+	/**
+	 * mapping node and memory
+	 * @param ptr pool memory pointer
+	 */
 	void MemoryPool::link_memory2node(BaseType *ptr)
 	{
 		MemoryNode *pnode = nullptr;
@@ -95,8 +129,13 @@ namespace MemoryPoolSpace
 		}
 		
 		this->update_link_node(this->plast);
+		this->debug_log(std::cout, "link node to memory end!");
 	}
 	
+	/**
+	 * merge the free memory
+	 * @param last the begin where you want to merge
+	 */
 	void MemoryPool::update_link_node(MemoryNode *last)
 	{
 		MemoryNode *pnode = nullptr;
@@ -113,9 +152,14 @@ namespace MemoryPoolSpace
 		}
 		
 		this->pcur = last->right;
+		this->debug_log(std::cout, "refresh memory and node end!");
 	}
 	
-	void MemoryPool::alloc_pool_memory()
+	/**
+	 * allocate memory for pool according to need
+	 * @return
+	 */
+	int MemoryPool::alloc_pool_memory()
 	{
 		this->calc_node_number();
 		this->calc_memory_size();
@@ -124,12 +168,13 @@ namespace MemoryPoolSpace
 		this->pool_all_size += this->pool_size;
 		this->pool_free_size += this->pool_size;
 		
+		//allocate memory
 		this->palloc = (BaseType *)realloc(this->palloc,this->pool_all_size * sizeof(BaseType));
 		//error ocurr
 		if(this->palloc == nullptr)
 		{
 			this->error_msg = "allocate memory failed!";
-			return;
+			return -1;
 		}
 		
 		if(false == this->is_first)
@@ -138,8 +183,27 @@ namespace MemoryPoolSpace
 		}
 		
 		this->link_memory2node(&this->palloc[this->pool_all_size - this->pool_size]);
+		
+		this->debug_log(std::cout, "allocate pool memory end!");
+		return 0;
 	}
 	
+	/**
+	 * output log information
+	 * @param os where you want to output
+	 * @param msg message
+	 * @return
+	 */
+	std::ostream &MemoryPool::log(std::ostream &os,const string &msg)
+	{
+		return os<<__FILE__<<" "<<__func__<<" "<<__LINE__<<": something wrong "
+				"occour!detail:"<<msg<<std::endl;
+	}
+	
+	/**
+	 * calcuate how many node do you need according to size
+	 * @param size memory size
+	 */
 	void MemoryPool::calc_need_num(const size_t &size)
 	{
 		float value = size / this->node_size;
@@ -150,6 +214,11 @@ namespace MemoryPoolSpace
 		}
 	}
 	
+	/**
+	 * find porper memory block
+	 * @param size target size
+	 * @return the porper pointer
+	 */
 	MemoryNode* MemoryPool::find_memory_node(size_t size)
 	{
 		if(this->pcur->data_size >= size && false == this->pcur->is_used)
@@ -172,13 +241,19 @@ namespace MemoryPoolSpace
 		}
 	}
 	
+	/**
+	 * allocate memory for user
+	 * @param ptr target pointer
+	 * @param size size
+	 * @return void
+	 */
 	void* MemoryPool::allocate(void **ptr, const size_t &size)
 	{
 		this->pool_free_size -= size;
 		this->pool_used_size += size;
-		this->puser = ptr;
-		this->use_object++;
-		void *pfind = find_memory_node(size);
+		this->puser = ptr;                      //user pointer
+		this->use_object++;                     //current user number
+		void *pfind = find_memory_node(size);   //find
 		if(nullptr != pfind)
 		{
 			return pfind;
@@ -186,6 +261,7 @@ namespace MemoryPoolSpace
 		
 		MemoryNode *ptmp = this->pcur;
 		this->pcur = this->pcur->right;
+		//allocate memory by traversal all node
 		for(;ptmp != this->pcur;this->pcur = this->pcur->right)
 		{
 			if(nullptr == this->pcur)
@@ -210,11 +286,18 @@ namespace MemoryPoolSpace
 			}
 		}
 		
+		//the memory is not enouth,allocate more
 		this->pool_size = size;
 		this->alloc_pool_memory();
+		this->debug_log(std::cout, "allocate memory for user end!");
 		return find_memory_node(size);
 	}
 	
+	/**
+	 * find the node you want to free
+	 * @param p memory pointer
+	 * @return target node
+	 */
 	MemoryNode* MemoryPool::search_alloc_node(void *p)
 	{
 		for(MemoryNode *ptmp = this->phead->right;nullptr != ptmp;ptmp = ptmp->right)
@@ -229,7 +312,14 @@ namespace MemoryPoolSpace
 		return nullptr;
 	}
 	
-	void MemoryPool::free(void *p, const size_t &size)
+	/**
+	 * free p with size length memory,here just reback the memory to pool,do not free it
+	 * @param p the target you want to free
+	 * @param size size
+	 * @return -1 error
+	 * 			0 normal
+	 */
+	int MemoryPool::free(void *p, const size_t &size)
 	{
 		this->use_object--;
 		this->pool_used_size -= size;
@@ -238,7 +328,7 @@ namespace MemoryPoolSpace
 		if(nullptr == ptmp)
 		{
 			this->error_msg = "can not find the allocated pointer!";
-			return;
+			return -1;
 		}
 		
 		this->calc_need_num(size);
@@ -248,64 +338,122 @@ namespace MemoryPoolSpace
 			ptmp = ptmp->right;
 		}
 		
+		//rejust memory
 		this->update_link_node(ptmp->left);
+		this->debug_log(std::cout, "free memory end!");
+		return 0;
 	}
 	
-	void MemoryPool::free_all_memory()
+	/**
+	 * free all memory,reback all memory to os
+	 * @return
+	 */
+	int MemoryPool::free_all_memory()
 	{
 		for(MemoryNode *ptmp = this->phead->right; nullptr != ptmp;ptmp = ptmp->right)
 		{
 			if(ptmp->is_begin && nullptr != ptmp->data)
 			{
 				delete []ptmp->data;
-				return;
+				if(ptmp->data != nullptr)
+				{
+					this->error_msg = "free memory error!";
+					this->debug_log(std::cout, "free pool memory error!");
+					return -1;
+				}
+				
+				this->debug_log(std::cout, "free pool memory end!");
+				return 0;
 			}
+		}
+		
+		this->debug_log(std::cout, "free pool memory error!");
+		return -1;
+	}
+	
+	/**
+	 * safe delete
+	 * @param p target you want to delete
+	 */
+	void MemoryPool::safe_delete(void *p)
+	{
+		if(nullptr != p)
+		{
+			delete p;
+			p = nullptr;
 		}
 	}
 	
+	/**
+	 * free all node in the pool
+	 */
 	void MemoryPool::free_all_node()
 	{
 		for(MemoryNode *ptmp = this->phead->right; nullptr != ptmp;)
 		{
 			MemoryNode* ptr = ptmp;
 			ptmp = ptmp->right;
-			delete ptr;
-			
+			this->safe_delete(ptr);
 		}
 		
-		if(nullptr != this->phead)
-		{
-			delete this->phead;
-		}
+		this->safe_delete(this->phead);
+		this->debug_log(std::cout, "free node end!");
 	}
 	
-	void MemoryPool::free_all()
+	/**
+	 * free all memory
+	 * @return -1 error
+	 * 			0 corrent
+	 */
+	int MemoryPool::free_all()
 	{
 		if(0 != this->use_object)
 		{
 			this->error_msg = "there still are some object are useing the memory!";
-			return;
+			this->debug_log(std::cout, "free pool memory error!");
+			return - 1;
 		}
 		
 		this->free_all_memory();
 		this->free_all_node();
+		return 0;
 	}
 	
+	/**
+	 * output the information of memory
+	 * @param os
+	 * @return
+	 */
 	ostream &MemoryPool::display_memory_status(ostream &os)
 	{
 		os<<"\n\t\t\tthe information of memory pool\t\t\t\n"
-	      <<"\t\tpool total size:"<<this->pool_all_size<<"\n"
-	      <<"\t\tused size:"<<this->pool_used_size<<"\n"
-	      <<"\t\tfree size:"<<this->pool_free_size<<"\n";
+	      <<"pool total size:"<<this->pool_all_size
+	      <<"\t\tused size:"<<this->pool_used_size
+	      <<"\t\tfree size:"<<this->pool_free_size<<"\n\n";
 		
 		MemoryNode *ptmp = this->phead->right;
+		os.flags(std::cout.left);
+		os<<std::setw(4)<<"no";
+		os<<std::setw(8)<<"size";
+		os<<std::setw(6)<<"used";
+		os<<std::endl;
 		for(int i = 1;ptmp != nullptr;i ++,ptmp = ptmp->right)
 		{
-			os<<"\npool no:"<<i<<"\t\tsize:"<<ptmp->data_size<<"\t\tused:"<<ptmp->is_used<<"\n";
+			os<<std::setw(4)<<i<<std::setw(8)<<ptmp->data_size<<std::setw(6)<<ptmp->is_used<<"\n";
 		}
 		
 		return os;
 	}
-	
-	
+
+	/**
+	 * output debug information
+	 * @param os
+	 * @param msg message
+	 */
+	void MemoryPool::debug_log(std::ostream &os,const string &msg)
+	{
+#ifndef DEBUG
+		this->log(os,msg);
+#endif
+	}
 };
