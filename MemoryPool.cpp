@@ -21,7 +21,7 @@ namespace MemoryPoolSpace
 		this->pool_all_size = 0;
 		this->use_object = 0;
 		
-		this->phead = new MemoryNode;
+		this->phead = new MemoryNode();
 		
 		this->phead->left = nullptr;
 		this->phead->right = nullptr;
@@ -100,19 +100,19 @@ namespace MemoryPoolSpace
 	void MemoryPool::update_link_node(MemoryNode *last)
 	{
 		MemoryNode *pnode = nullptr;
-		pnode = pnode->right;
+		pnode = last->right;
 		int size = 0;
 		if(nullptr != pnode && false == pnode->is_used)
 		{
 			size = pnode->data_size;
 		}
 		
-		for(int i = 0; pnode != this->phead && false == pnode->is_used ;i ++, pnode = pnode->left)
+		for(int i = 0; last != this->phead && false == last->is_used ;i ++, last = last->left)
 		{
-			pnode->data_size = i * this->node_size + size;
+			last->data_size = i * this->node_size + size;
 		}
 		
-		this->pcur = pnode->right;
+		this->pcur = last->right;
 	}
 	
 	void MemoryPool::alloc_pool_memory()
